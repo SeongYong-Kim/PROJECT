@@ -12,10 +12,10 @@
 #define events 2000  /*total number of events*/
 
 int   next_event_type, num_custs_delayed, num_delays_required, num_events,
-      num_in_q, server_status, max_queue, cus_num_arr, cus_num_depart;
+      num_in_q, server_status, max_queue, cus_num_arr, cus_num_depart, num_in_system;
 float area_num_in_q, area_server_status, mean_interarrival, mean_service,
       sim_time, time_arrival[Q_LIMIT + 1], time_last_event, time_next_event[3],
-      total_of_delays, max_delay, arr_list[events + 1], depart_list[events + 1], max_t, excess1;
+      total_of_delays, max_delay, arr_list[events + 1], depart_list[events + 1], max_t, excess1, area_num_in_sys, total_t;
 FILE  *infile, *outfile;
 
 void  initialize(void);
@@ -106,6 +106,7 @@ void initialize(void)  /* Initialization function. */
 
     server_status   = IDLE;
     num_in_q        = 0;
+    num_in_system   = 0;
     time_last_event = 0.0;
 
 
@@ -114,12 +115,14 @@ void initialize(void)  /* Initialization function. */
     num_custs_delayed  = 0;
     total_of_delays    = 0.0;
     area_num_in_q      = 0.0;
+    area_num_in_sys    = 0.0;
     area_server_status = 0.0;
     max_queue = 0;
     max_delay = 0;
     cus_num_arr = 0;
     cus_num_depart = 0;
     max_t = 0.0;
+    total_t = 0.0;
     excess1 = 0;
 
     /* Initialize event list.  Since no customers are present, the departure
@@ -165,6 +168,9 @@ void timing(void)  /* Timing function. */
 void arrive(void)  /* Arrival event function. */
 {
     float delay;
+
+    /*system num 증가*/
+    ++num_in_system;
 
     /*총 고객 수 증가*/
     ++cus_num_arr;
@@ -232,8 +238,14 @@ void depart(void)  /* Departure event function. */
     int   i;
     float delay;
 
+    /*system num 감소*/
+    --num_in_system;
+
     /*departure 고객 수 체크*/
     ++cus_num_depart;
+
+    /*고객 당 departure time 저장*/
+    depart_list[cus_num_depart] = sim_time;
 
     /* Check to see whether the queue is empty. */
 
@@ -279,20 +291,22 @@ void depart(void)  /* Departure event function. */
         for (i = 1; i <= num_in_q; ++i)
             time_arrival[i] = time_arrival[i + 1];
 
-        /*고객 당 departure time 저장*/
-        depart_list[cus_num_depart] = sim_time;
     }
 }
 
-void max_time(void) { /*최대시간 걸린 고객시간 생성 함수*/
+void max_time(void) { /*최대시간 걸린 고객시간 생성 함수 + system에서 머문시간 저장*/
     int i;
 
-    for (i = 1 ; i <= cus_num_arr ; i++) {
+    for (i = 1 ; i <= cus_num_depart ; i++) {
+
+        total_t += depart_list[i] - arr_list[i];
+
         if (max_t < depart_list[i] - arr_list[i]) {
             max_t = depart_list[i] - arr_list[i];
         }
     }
 }
+
 
 
 void report(void)  /* Report generator function. */
@@ -306,15 +320,14 @@ void report(void)  /* Report generator function. */
     fprintf(outfile, "Server utilization%15.3f\n\n",
             area_server_status / sim_time);
     fprintf(outfile, "(a) Average number in system  : %7.3f\n\n",
-        (area_num_in_q / sim_time) + (mean_interarrival / mean_service));
+        area_num_in_sys / sim_time);
     fprintf(outfile, "(b) Average total time in system  : %7.3f minutes\n\n",
-        (total_of_delays / num_custs_delayed) + (1 / mean_service));
+       total_t / cus_num_depart);
     fprintf(outfile, "(c) Max queue length  :   %d\n\n", max_queue);
     fprintf(outfile, "(d) Max delay in queue  : %7.3f minutes\n\n", max_delay);
     fprintf(outfile, "(e) Max time in the system  : %7.3f minutes\n\n", max_t);
-    fprintf(outfile, "(f) Proportion of customers having a delay in queue in excess of 1 minute  : %7.3f\n\n", excess1 / cus_num_depart);
+    fprintf(outfile, "(f) Proportion of customers having a delay in queue in excess of 1 minute  : %7.3f\n\n", excess1 / num_custs_delayed);
     fprintf(outfile, "Time simulation ended%12.3f minutes", sim_time);
-
 }
 
 
@@ -327,6 +340,10 @@ void update_time_avg_stats(void)  /* Update area accumulators for time-average
 
     time_since_last_event = sim_time - time_last_event;
     time_last_event       = sim_time;
+
+    /* Update area under nubmer-in-system function */
+
+    area_num_in_sys += num_in_system * time_since_last_event;
 
     /* Update area under number-in-queue function. */
 
