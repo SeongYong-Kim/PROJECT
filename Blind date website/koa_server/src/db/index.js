@@ -9,7 +9,7 @@ const model = require("../model");
 //         timestamps: false,
 //     },
 // });
-const sequelize = new Sequelize("dbtest", "root", "76071090za*", {
+const sequelize = new Sequelize("dbtest", "root", "*********", {
     host: "localhost",
     dialect: "mysql",
     define: {
